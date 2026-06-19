@@ -655,6 +655,19 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+}
+.med-edit {
+  width: 32px; height: 32px;
+  border-radius: 9px;
+  border: none;
+  background: var(--primary-light);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 /* ══════════════════════════════════════════
@@ -1110,9 +1123,12 @@ body {
 
     <!-- ══════════ SCREEN: SCAN ══════════ -->
     <div class="screen" id="s-scan">
-      <div class="screen-header">
-        <span style="font-size:22px">🔍</span>
-        <h1>약 정보 검색</h1>
+      <div class="screen-header" style="justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <span style="font-size:22px">🔍</span>
+          <h1>약 정보 검색</h1>
+        </div>
+        <button class="backup-icon-btn" onclick="openApiKeySetup()" title="API 키 설정">🔑</button>
       </div>
       <div class="screen-body">
         <div class="scan-hero">
@@ -1268,7 +1284,7 @@ body {
   <div style="flex:1" onclick="closeManualEntry()"></div>
   <div class="modal-sheet">
     <div class="modal-handle"></div>
-    <div class="modal-title">✍️ 약 직접 입력</div>
+    <div class="modal-title" id="modal-title-manual">✍️ 약 직접 입력</div>
 
     <div class="form-group">
       <label class="form-label">약 이름 *</label>
@@ -1315,7 +1331,7 @@ body {
 
     <div class="cam-actions">
       <button class="btn btn-ghost" onclick="closeManualEntry()">취소</button>
-      <button class="btn btn-primary" onclick="submitManualEntry()">✓ 추가하기</button>
+      <button class="btn btn-primary" id="submit-manual-btn" onclick="submitManualEntry()">✓ 추가하기</button>
     </div>
   </div>
 </div>
@@ -1357,10 +1373,51 @@ body {
       <input type="file" id="restore-file-input" accept="application/json,.json" style="display:none" onchange="onRestoreFileSelect(event)">
     </div>
 
+    <div class="backup-section">
+      <div class="backup-section-title">🔑 AI 분석용 API 키</div>
+      <button class="btn btn-ghost" style="width:100%" onclick="closeBackup(); openApiKeySetup();">🔑 API 키 관리</button>
+    </div>
+
     <div class="danger-zone">
       <div class="backup-section-title" style="color:var(--danger)">⚠️ 위험 구역</div>
       <button class="btn-danger-outline" onclick="confirmResetAll()">🗑️ 모든 데이터 초기화</button>
     </div>
+  </div>
+</div>
+
+<!-- API KEY MODAL -->
+<div class="modal-bg" id="apikey-modal">
+  <div style="flex:1" onclick="closeApiKeySetup()"></div>
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">🔑 Anthropic API 키 설정</div>
+
+    <div class="backup-info-box" style="display:flex;align-items:center;gap:8px;" id="apikey-status">
+      <span style="font-size:16px">✅</span>
+      <span>현재 API 키가 저장되어 있어요.</span>
+    </div>
+
+    <div class="backup-info-box">
+      📌 사진/검색으로 약 정보를 AI로 분석하려면 본인의 Anthropic API 키가 필요해요. 키는 이 브라우저에만 저장되고, 외부로 전송되지 않아요(분석 요청 시 Anthropic 서버로만 직접 전송됩니다).
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">API 키</label>
+      <input type="password" class="form-input" id="apikey-input" placeholder="sk-ant-…" autocomplete="off" spellcheck="false">
+    </div>
+
+    <div class="backup-section">
+      <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener" style="font-size:12px;color:var(--primary);font-weight:600;text-decoration:none;">
+        🔗 console.anthropic.com 에서 API 키 발급받기 →
+      </a>
+    </div>
+
+    <div class="cam-actions">
+      <button class="btn btn-ghost" onclick="closeApiKeySetup()">취소</button>
+      <button class="btn btn-primary" onclick="saveApiKeySetup()">✓ 저장하기</button>
+    </div>
+    <div style="height:8px"></div>
+    <button class="btn-danger-outline" onclick="clearApiKeySetup()">🗑️ 저장된 키 삭제</button>
   </div>
 </div>
 
@@ -1379,6 +1436,43 @@ let currentScreen = 'home';
 let weekOffset = 0; // 0 = this week, -1 = last week, etc.
 let histView = 'week';
 let timingChipSel = '아침 식후';
+
+// ═══════════════════════════════════════════
+// API KEY
+// ═══════════════════════════════════════════
+function getApiKey() {
+  return localStorage.getItem('anthropicApiKey') || '';
+}
+function setApiKey(key) {
+  if (key) localStorage.setItem('anthropicApiKey', key);
+  else localStorage.removeItem('anthropicApiKey');
+}
+function openApiKeySetup() {
+  const cur = getApiKey();
+  document.getElementById('apikey-input').value = cur;
+  document.getElementById('apikey-status').style.display = cur ? 'flex' : 'none';
+  document.getElementById('apikey-modal').classList.add('open');
+}
+function closeApiKeySetup() {
+  document.getElementById('apikey-modal').classList.remove('open');
+}
+function saveApiKeySetup() {
+  const val = document.getElementById('apikey-input').value.trim();
+  if (val && !val.startsWith('sk-ant-')) {
+    const ok = confirm('입력한 키가 일반적인 Anthropic 키 형식(sk-ant-…)과 달라요.\n그래도 저장할까요?');
+    if (!ok) return;
+  }
+  setApiKey(val);
+  closeApiKeySetup();
+  showToast(val ? '✅ API 키가 저장됐어요' : '🔑 API 키가 삭제됐어요');
+}
+function clearApiKeySetup() {
+  if (!confirm('저장된 API 키를 삭제할까요?')) return;
+  setApiKey('');
+  document.getElementById('apikey-input').value = '';
+  document.getElementById('apikey-status').style.display = 'none';
+  showToast('🔑 API 키가 삭제됐어요');
+}
 
 const DAYS_KO = ['일','월','화','수','목','금','토'];
 const MONTHS_EN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -1504,6 +1598,7 @@ function renderHomeDoseList() {
     </div>`;
     return;
   }
+  sortMedsByTiming();
 
   const tk = todayKey();
   if (!dailyLog[tk]) dailyLog[tk] = {};
@@ -1612,7 +1707,30 @@ function toggleDose(id) {
 // ═══════════════════════════════════════════
 // MY MEDS
 // ═══════════════════════════════════════════
+const TIMING_ORDER = ['식전', '아침 식전', '아침 식후', '아침', '오전', '점심 식전', '점심 식후', '점심', '낮', '저녁 식전', '저녁 식후', '저녁', '취침 전', '취침', '밤'];
+
+function timingSortKey(timing) {
+  const t = timing || '';
+  // Try to match known phrases by priority order
+  for (let i = 0; i < TIMING_ORDER.length; i++) {
+    if (t.includes(TIMING_ORDER[i])) return i;
+  }
+  // Fallback by keyword groups
+  if (t.includes('아침') || t.includes('오전')) return 1.5;
+  if (t.includes('점심') || t.includes('낮')) return 5.5;
+  if (t.includes('저녁')) return 9.5;
+  if (t.includes('취침') || t.includes('밤')) return 12.5;
+  if (t.includes('식전')) return 0.5;
+  if (t.includes('필요시') || t.includes('필요')) return 99;
+  return 50; // unknown timing goes near the middle-end
+}
+
+function sortMedsByTiming() {
+  myMeds.sort((a, b) => timingSortKey(a.timing) - timingSortKey(b.timing));
+}
+
 function renderMyMeds() {
+  sortMedsByTiming();
   const list = document.getElementById('meds-list');
   if (!myMeds.length) {
     list.innerHTML = `<div class="empty-home" style="margin:0 0">
@@ -1631,6 +1749,7 @@ function renderMyMeds() {
         <div class="med-detail">${m.generic_name || ''} · ${m.frequency}</div>
         <div class="med-detail">${m.timing} · ${m.per_dose}</div>
       </div>
+      <button class="med-edit" onclick="openEditMed(${m.id})">✏️</button>
       <button class="med-del" onclick="removeMed(${m.id})">🗑️</button>
     </div>`).join('');
 }
@@ -1656,16 +1775,22 @@ function addToMyMeds(data) {
     per_dose: data.dosage?.per_dose || '1정',
     max_daily: data.dosage?.max_daily || '-',
   };
-  myMeds.unshift(med);
+  myMeds.push(med);
+  sortMedsByTiming();
   localStorage.setItem('myMeds', JSON.stringify(myMeds));
   showToast('✅ 내 약에 추가됐어요!');
   updateNavBadge();
 }
 
 // ═══════════════════════════════════════════
-// MANUAL ENTRY
+// MANUAL ENTRY (ADD + EDIT)
 // ═══════════════════════════════════════════
+let editingMedId = null; // null = add mode, otherwise editing this med's id
+
 function openManualEntry() {
+  editingMedId = null;
+  document.getElementById('modal-title-manual').textContent = '✍️ 약 직접 입력';
+  document.getElementById('submit-manual-btn').textContent = '✓ 추가하기';
   document.getElementById('m-name').value = '';
   document.getElementById('m-generic').value = '';
   document.getElementById('m-perdose').value = '';
@@ -1678,8 +1803,36 @@ function openManualEntry() {
   document.getElementById('manual-modal').classList.add('open');
 }
 
+function openEditMed(id) {
+  const med = myMeds.find(m => m.id === id);
+  if (!med) return;
+  editingMedId = id;
+  document.getElementById('modal-title-manual').textContent = '✏️ 약 정보 수정';
+  document.getElementById('submit-manual-btn').textContent = '✓ 수정 완료';
+  document.getElementById('m-name').value = med.name || '';
+  document.getElementById('m-generic').value = med.generic_name || '';
+  document.getElementById('m-perdose').value = med.per_dose || '';
+  document.getElementById('m-frequency').value = med.frequency || '하루 2회';
+  document.getElementById('m-maxdaily').value = med.max_daily === '-' ? '' : (med.max_daily || '');
+
+  // Match timing chip — fallback to custom display if not in chip list
+  timingChipSel = med.timing || '아침 식후';
+  let matched = false;
+  document.querySelectorAll('#m-timing-chips .timing-chip').forEach(c => {
+    const isMatch = c.dataset.v === timingChipSel;
+    c.classList.toggle('sel', isMatch);
+    if (isMatch) matched = true;
+  });
+  if (!matched) {
+    // no chip matches exactly — clear selection visually but keep value
+    document.querySelectorAll('#m-timing-chips .timing-chip').forEach(c => c.classList.remove('sel'));
+  }
+  document.getElementById('manual-modal').classList.add('open');
+}
+
 function closeManualEntry() {
   document.getElementById('manual-modal').classList.remove('open');
+  editingMedId = null;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1694,8 +1847,32 @@ document.addEventListener('DOMContentLoaded', () => {
 function submitManualEntry() {
   const name = document.getElementById('m-name').value.trim();
   if (!name) { showToast('약 이름을 입력해주세요'); return; }
-  if (myMeds.find(m => m.name === name)) { showToast('이미 추가된 약이에요'); return; }
 
+  if (editingMedId !== null) {
+    // EDIT MODE
+    const dup = myMeds.find(m => m.name === name && m.id !== editingMedId);
+    if (dup) { showToast('같은 이름의 약이 이미 있어요'); return; }
+    const med = myMeds.find(m => m.id === editingMedId);
+    if (!med) { closeManualEntry(); return; }
+    med.name = name;
+    med.generic_name = document.getElementById('m-generic').value.trim();
+    med.frequency = document.getElementById('m-frequency').value;
+    med.timing = timingChipSel;
+    med.per_dose = document.getElementById('m-perdose').value.trim() || '1정';
+    med.max_daily = document.getElementById('m-maxdaily').value.trim() || '-';
+
+    sortMedsByTiming();
+    localStorage.setItem('myMeds', JSON.stringify(myMeds));
+    closeManualEntry();
+    showToast('✅ 수정 완료!');
+    updateNavBadge();
+    renderMyMeds();
+    if (currentScreen === 'home') initHome();
+    return;
+  }
+
+  // ADD MODE
+  if (myMeds.find(m => m.name === name)) { showToast('이미 추가된 약이에요'); return; }
   const med = {
     id: Date.now(),
     name: name,
@@ -1706,7 +1883,8 @@ function submitManualEntry() {
     per_dose: document.getElementById('m-perdose').value.trim() || '1정',
     max_daily: document.getElementById('m-maxdaily').value.trim() || '-',
   };
-  myMeds.unshift(med);
+  myMeds.push(med);
+  sortMedsByTiming();
   localStorage.setItem('myMeds', JSON.stringify(myMeds));
   closeManualEntry();
   showToast('✅ 내 약에 추가됐어요!');
@@ -1776,6 +1954,7 @@ function onRestoreFileSelect(event) {
 
     myMeds = parsed.myMeds;
     dailyLog = parsed.dailyLog || {};
+    sortMedsByTiming();
     localStorage.setItem('myMeds', JSON.stringify(myMeds));
     localStorage.setItem('dailyLog', JSON.stringify(dailyLog));
 
@@ -1923,6 +2102,20 @@ async function callClaude(imageB64, textQ) {
   navTo('scan');
   const lc = document.getElementById('loading-card');
   const rw = document.getElementById('result-wrap');
+
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    rw.style.display = 'block';
+    rw.innerHTML = `<div style="background:var(--surface);border-radius:var(--r-sm);padding:28px;text-align:center;box-shadow:var(--shadow-sm)">
+      <div style="font-size:36px;margin-bottom:10px">🔑</div>
+      <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:14px">
+        AI 분석을 사용하려면<br>Anthropic API 키가 필요해요.
+      </p>
+      <button class="add-btn" style="margin:0" onclick="openApiKeySetup()">🔑 API 키 설정하기</button>
+    </div>`;
+    return;
+  }
+
   lc.classList.add('show');
   rw.style.display = 'none';
   rw.innerHTML = '';
@@ -1958,13 +2151,39 @@ async function callClaude(imageB64, textQ) {
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
         max_tokens: 1000,
         messages: [{ role:'user', content }]
       })
     });
+
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => null);
+      lc.classList.remove('show');
+      rw.style.display = 'block';
+      if (res.status === 401) {
+        rw.innerHTML = `<div style="background:var(--surface);border-radius:var(--r-sm);padding:28px;text-align:center;box-shadow:var(--shadow-sm)">
+          <div style="font-size:36px;margin-bottom:10px">🔑</div>
+          <p style="font-size:13px;color:var(--danger);line-height:1.7;margin-bottom:14px">API 키가 올바르지 않아요.<br>다시 확인해주세요.</p>
+          <button class="add-btn" style="margin:0" onclick="openApiKeySetup()">🔑 API 키 다시 입력</button>
+        </div>`;
+      } else {
+        const msg = errBody?.error?.message || `오류 코드 ${res.status}`;
+        rw.innerHTML = `<div style="background:var(--surface);border-radius:var(--r-sm);padding:28px;text-align:center;box-shadow:var(--shadow-sm)">
+          <div style="font-size:36px;margin-bottom:10px">⚠️</div>
+          <p style="font-size:13px;color:var(--danger);line-height:1.6">요청 실패: ${msg}</p>
+        </div>`;
+      }
+      return;
+    }
+
     const data = await res.json();
     const raw = data.content.map(i => i.text||'').join('');
     const clean = raw.replace(/```json|```/g,'').trim();
@@ -1985,7 +2204,7 @@ async function callClaude(imageB64, textQ) {
     rw.style.display = 'block';
     rw.innerHTML = `<div style="background:var(--surface);border-radius:var(--r-sm);padding:28px;text-align:center;box-shadow:var(--shadow-sm)">
       <div style="font-size:36px;margin-bottom:10px">⚠️</div>
-      <p style="font-size:13px;color:var(--danger)">네트워크 오류. 다시 시도해주세요.</p>
+      <p style="font-size:13px;color:var(--danger);line-height:1.6">네트워크 오류가 발생했어요.<br>인터넷 연결을 확인하고 다시 시도해주세요.</p>
     </div>`;
   }
 }
